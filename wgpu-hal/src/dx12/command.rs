@@ -30,10 +30,7 @@ impl crate::BufferTextureCopy {
                 )
                 .unwrap(),
                 Width: self.size.width,
-                Height: self
-                    .buffer_layout
-                    .rows_per_image
-                    .map_or(self.size.height, |count| count * block_height),
+                Height: self.size.height,
                 Depth: self.size.depth,
                 RowPitch: {
                     let actual = self.buffer_layout.bytes_per_row.unwrap_or_else(|| {
