@@ -362,7 +362,6 @@ Migrated from the `max_inter_stage_shader_components` limit to `max_inter_stage_
     - `front::wgsl::Frontend::set_options`
     - `ir::Block::is_empty`
     - `ir::Block::len`
-
 #### GLES
 
 - Added `GlDebugFns` option in `GlBackendOptions` to control OpenGL debug functions (`glPushDebugGroup`, `glPopDebugGroup`, `glObjectLabel`, etc.). Automatically disables them on Mali GPUs to work around a driver crash. By @Xavientois in [#8931](https://github.com/gfx-rs/wgpu/pull/8931).
