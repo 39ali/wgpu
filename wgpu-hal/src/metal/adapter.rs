@@ -1107,6 +1107,32 @@ impl super::CapabilitiesQuery {
                 false
             },
             shader_per_vertex: family_check && device.supportsFamily(MTLGPUFamily::Apple10),
+
+            supports_multisample_array: {
+                let mut supported = false;
+
+                if available!(macos = 10.15, ios = 13.0, tvos = 13.0, visionos = 1.0) {
+                    // According to Metal Feature Set Tables:
+                    // Multisample 2D Array textures are supported on:
+                    // - Apple Family 3 and higher (A10 chips/iPhone 7 and newer)
+                    // - Mac Family 1 and higher (All Intel/AMD/Apple Silicon Macs)
+                    if device.supportsFamily(MTLGPUFamily::Apple3)
+                        || device.supportsFamily(MTLGPUFamily::Mac1)
+                    {
+                        supported = true;
+                    }
+                } else {
+                    // Fallback for older OS versions using legacy feature set queries
+                    // MTLFeatureSet_iOS_GPUFamily3_v2 or MTLFeatureSet_macOS_GPUFamily1_v1
+                    if device.supportsFeatureSet(MTLFeatureSet::iOS_GPUFamily3_v2)
+                        || device.supportsFeatureSet(MTLFeatureSet::macOS_GPUFamily1_v1)
+                    {
+                        supported = true;
+                    }
+                }
+
+                supported
+            },
         }
     }
 
@@ -1241,6 +1267,8 @@ impl super::CapabilitiesQuery {
         }
 
         features.set(F::EXPERIMENTAL_RAY_QUERY, self.supports_raytracing);
+
+        features.set(F::MULTISAMPLE_ARRAY, self.supports_multisample_array);
 
         features
     }
