@@ -4863,7 +4863,7 @@ fn binding_array_requires_capability() {
         "#:
         Err(naga::valid::ValidationError::GlobalVariable {
             source: naga::valid::GlobalVariableError::UnsupportedCapability(
-               Capabilities::STORAGE_BUFFER_BINDING_ARRAY
+                Capabilities::STORAGE_BUFFER_BINDING_ARRAY
             ),
             ..
         })
