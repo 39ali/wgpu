@@ -111,6 +111,10 @@ fn parse_git_version_output(output: &str) -> anyhow::Result<GitVersion> {
         .split_once(".windows")
         .map_or(raw_version, |(before, _after)| before);
 
+    let raw_version = raw_version
+        .split_once("(Apple")
+        .map_or(raw_version, |(before, _after)| before).trim();
+    
     let parsed = GitVersion::try_from(
         raw_version
             .splitn(3, '.')
