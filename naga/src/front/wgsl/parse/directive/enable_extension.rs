@@ -282,7 +282,8 @@ impl ImplementedEnableExtension {
                 .union(C::STORAGE_TEXTURE_BINDING_ARRAY)
                 .union(C::STORAGE_TEXTURE_BINDING_ARRAY_NON_UNIFORM_INDEXING)
                 .union(C::TEXTURE_AND_SAMPLER_BINDING_ARRAY)
-                .union(C::TEXTURE_AND_SAMPLER_BINDING_ARRAY_NON_UNIFORM_INDEXING),
+                .union(C::TEXTURE_AND_SAMPLER_BINDING_ARRAY_NON_UNIFORM_INDEXING)
+                .union(C::ACCELERATION_STRUCTURE_BINDING_ARRAY),
         }
     }
 }
