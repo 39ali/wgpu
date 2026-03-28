@@ -109,6 +109,7 @@ Bottom level categories:
 - Fixed handling of unterminated block comments. By @BKDaugherty in [#9356](https://github.com/gfx-rs/wgpu/pull/9356).
 - Enforce that `@must_use` appear only on function declarations. By @dnsn021 in [#9367](https://github.com/gfx-rs/wgpu/pull/9367).
 - Fix typo in `naga::back::msl::Error::UnsupportedWritable*` variant names. By @ErichDonGubler in [#9376](https://github.com/gfx-rs/wgpu/pull/9376).
+- Added support for `enable wgpu_binding_array;`. by @39ali in [#9298](https://github.com/gfx-rs/wgpu/pull/9298).
 
 #### Vulkan
 
@@ -362,6 +363,7 @@ Migrated from the `max_inter_stage_shader_components` limit to `max_inter_stage_
     - `front::wgsl::Frontend::set_options`
     - `ir::Block::is_empty`
     - `ir::Block::len`
+
 #### GLES
 
 - Added `GlDebugFns` option in `GlBackendOptions` to control OpenGL debug functions (`glPushDebugGroup`, `glPopDebugGroup`, `glObjectLabel`, etc.). Automatically disables them on Mali GPUs to work around a driver crash. By @Xavientois in [#8931](https://github.com/gfx-rs/wgpu/pull/8931).
