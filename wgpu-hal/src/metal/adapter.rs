@@ -122,6 +122,7 @@ impl crate::Adapter for super::Adapter {
                 shared: Arc::new(QueueShared {
                     raw: queue,
                     command_buffer_created_not_submitted: atomic::AtomicUsize::new(0),
+                    sync: Arc::clone(&self.shared.queue_sync),
                 }),
                 timestamp_period,
             },

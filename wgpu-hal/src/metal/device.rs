@@ -1,6 +1,5 @@
 use alloc::{borrow::ToOwned as _, sync::Arc, vec::Vec};
 use core::{ptr::NonNull, sync::atomic};
-use std::{thread, time};
 
 use bytemuck::TransparentWrapper;
 use objc2::{
@@ -1871,30 +1870,36 @@ impl crate::Device for super::Device {
             return Ok(true);
         }
 
-        let cmd_buf = match fence
+        if !fence
             .pending_command_buffers
             .iter()
-            .find(|&&(value, _)| value >= wait_value)
+            .any(|&(value, _)| value >= wait_value)
         {
-            Some((_, cmd_buf)) => cmd_buf,
-            None => {
-                log::error!("No active command buffers for fence value {wait_value}");
-                return Err(crate::DeviceError::Lost);
-            }
-        };
+            log::error!("No active command buffers for fence value {wait_value}");
+            return Err(crate::DeviceError::Lost);
+        }
 
-        let start = time::Instant::now();
-        loop {
-            if let MTLCommandBufferStatus::Completed = cmd_buf.status() {
-                return Ok(true);
-            }
-            if let Some(timeout) = timeout {
-                if start.elapsed() >= timeout {
-                    return Ok(false);
+        let (ref mutex, ref condvar) = *self.shared.queue_sync;
+        let mut lock = mutex.lock();
+
+        if let Some(deadline) =
+            timeout.and_then(|timeout| std::time::Instant::now().checked_add(timeout))
+        {
+            while fence.completed_value.load(atomic::Ordering::Acquire) < wait_value {
+                let result = condvar.wait_until(&mut lock, deadline);
+                if result.timed_out() {
+                    // check again and return false if we timed out and the value still isn't met
+                    return Ok(fence.completed_value.load(atomic::Ordering::Acquire) >= wait_value);
                 }
             }
-            thread::sleep(core::time::Duration::from_millis(1));
+        } else {
+            // wait indefinitely until the condition is met
+            while fence.completed_value.load(atomic::Ordering::Acquire) < wait_value {
+                condvar.wait(&mut lock);
+            }
         }
+
+        Ok(true)
     }
 
     unsafe fn start_graphics_debugger_capture(&self) -> bool {
