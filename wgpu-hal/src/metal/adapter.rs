@@ -1108,19 +1108,13 @@ impl super::CapabilitiesQuery {
             },
             shader_per_vertex: family_check && device.supportsFamily(MTLGPUFamily::Apple10),
 
-            supports_multisample_array: {
-                //https://developer.apple.com/documentation/metal/mtltexturetype/type2dmultisamplearray
-                // According to Metal Feature Set Tables:
-                // Multisample 2D Array textures are supported on:
-                // - Apple Family 3 and higher (A10 chips/iPhone 7 and newer)
-                // - Mac Family 1 and higher (All Intel/AMD/Apple Silicon Macs)
-                if available!(macos = 10.14, ios = 14.0, tvos = 16.0, visionos = 1.0) {
-                    device.supportsFamily(MTLGPUFamily::Apple3)
-                        || device.supportsFamily(MTLGPUFamily::Mac1)
-                } else {
-                    false
-                }
-            },
+            //https://developer.apple.com/documentation/metal/mtltexturetype/type2dmultisamplearray
+            supports_multisample_array: available!(
+                macos = 10.14,
+                ios = 14.0,
+                tvos = 16.0,
+                visionos = 1.0
+            ),
         }
     }
 
