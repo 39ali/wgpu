@@ -7235,8 +7235,8 @@ template <typename A>
                 }
             }
 
-            //https://developer.apple.com/metal/Metal-Shading-Language-Specification.pdf - 1.6.6
-            if ep.stage == crate::ShaderStage::Compute && options.lang_version >= (3, 0) {
+            // https://web.archive.org/web/20181029003926/https://developer.apple.com/metal/Metal-Shading-Language-Specification.pdf
+            if ep.stage == crate::ShaderStage::Compute && options.lang_version >= (2, 1) {
                 let total_threads =
                     ep.workgroup_size[0] * ep.workgroup_size[1] * ep.workgroup_size[2];
                 write!(

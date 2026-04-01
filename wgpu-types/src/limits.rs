@@ -219,9 +219,6 @@ pub struct Limits {
     pub max_compute_workgroup_storage_size: u32,
     /// Maximum value of the product of the `workgroup_size` dimensions for a compute entry-point.
     /// Defaults to 256. Higher is "better".
-    /// **Note:** On Metal, this is used to emit the `[[max_total_threads_per_threadgroup]]`
-    /// attribute. This is how we guarantee that compute dispatches will always run
-    /// and not silently fail due to hardware register pressure or occupancy limits.
     pub max_compute_invocations_per_workgroup: u32,
     /// The maximum value of the `workgroup_size` X dimension for a compute stage `ShaderModule` entry-point.
     /// Defaults to 256. Higher is "better".
@@ -1045,6 +1042,9 @@ bitflags::bitflags! {
         ///
         /// Not supported by Vulkan on Mesa when [`Features::SHADER_F16`] is absent.
         const SHADER_F16_IN_F32 = 1 << 23;
+
+        /// Supports features introduced in MSL 2.1.
+        const MSL2_1 = 1 << 24;
     }
 }
 
