@@ -2274,6 +2274,7 @@ impl<W: Write> Writer<W> {
                     // to signed.
                     self.put_bitcasted_expression(
                         context.resolve_type(expr_handle),
+                        expr_handle,
                         context,
                         &|writer, context, is_scoped| {
                             writer.put_binop(
@@ -2285,6 +2286,7 @@ impl<W: Write> Writer<W> {
                                 &|writer, expr, context, _is_scoped| {
                                     writer.put_bitcasted_expression(
                                         &to_unsigned(context.resolve_type(expr))?,
+                                        expr,
                                         context,
                                         &|writer, context, is_scoped| {
                                             writer.put_expression(expr, context, is_scoped)
@@ -3026,6 +3028,7 @@ impl<W: Write> Writer<W> {
     fn put_bitcasted_expression<F>(
         &mut self,
         cast_to: &crate::TypeInner,
+        inner_expr: Handle<crate::Expression>,
         context: &ExpressionContext,
         put_expression: &F,
     ) -> BackendResult
@@ -3041,9 +3044,18 @@ impl<W: Write> Writer<W> {
             _ => return Err(Error::UnsupportedBitCast(cast_to.clone())),
         };
         write!(self.out, ">(")?;
-        put_expression(self, context, true)?;
-        write!(self.out, ")")?;
 
+        // if it's packed, we must unpack it (e.g., float3(val)) before the bitcast.
+        if let Some(scalar) = context.get_packed_vec_kind(inner_expr) {
+            put_numeric_type(&mut self.out, scalar, &[crate::VectorSize::Tri])?;
+            write!(self.out, "(")?;
+            put_expression(self, context, true)?;
+            write!(self.out, ")")?;
+        } else {
+            put_expression(self, context, true)?;
+        }
+
+        write!(self.out, ")")?;
         Ok(())
     }
 
