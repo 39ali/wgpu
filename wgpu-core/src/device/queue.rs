@@ -533,8 +533,24 @@ impl Queue {
         let data_size = if let Some(data_size) = wgt::BufferSize::new(data_size) {
             data_size
         } else {
-            // This must happen after parameter validation (so that errors are reported
-            // as required by the spec), but before any side effects.
+            let validate_zero = || -> Result<(), TransferError> {
+                buffer.check_usage(wgt::BufferUsages::COPY_DST)?;
+
+                if !matches!(&*buffer.map_state.lock(), BufferMapState::Idle) {
+                    return Err(TransferError::BufferNotAvailable);
+                }
+
+                if buffer_offset > buffer.size {
+                    return Err(TransferError::BufferStartOffsetOverrun {
+                        start_offset: buffer_offset,
+                        buffer_size: buffer.size,
+                        side: CopySide::Destination,
+                    });
+                }
+                Ok(())
+            };
+
+            validate_zero()?;
             log::trace!("Ignoring write_buffer of size 0");
             return Ok(());
         };
