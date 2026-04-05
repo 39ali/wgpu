@@ -452,8 +452,11 @@ impl crate::Device for super::Device {
             })
         })
     }
-    unsafe fn destroy_buffer(&self, _buffer: super::Buffer) {
+    unsafe fn destroy_buffer(&self, buffer: super::Buffer) {
         self.counters.buffers.sub(1);
+        autoreleasepool(|_| {
+            drop(buffer);
+        });
     }
 
     unsafe fn add_raw_buffer(&self, _buffer: &super::Buffer) {

@@ -416,27 +416,29 @@ impl AdapterShared {
     }
 
     fn expose(device: Retained<ProtocolObject<dyn MTLDevice>>) -> crate::ExposedAdapter<Api> {
-        let name = device.name().to_string();
-        let capabilities_query = CapabilitiesQuery::new(&device);
-        let shared = AdapterShared::new(device, &capabilities_query);
-        let features = capabilities_query.features();
-        let capabilities = capabilities_query.capabilities();
-        crate::ExposedAdapter {
-            info: wgt::AdapterInfo {
-                name,
-                // These are hardcoded based on typical values for Metal devices
-                //
-                // See <https://github.com/gpuweb/gpuweb/blob/main/proposals/subgroups.md#adapter-info>
-                // for more information.
-                subgroup_min_size: 4,
-                subgroup_max_size: 64,
-                transient_saves_memory: shared.private_caps.supports_memoryless_storage,
-                ..wgt::AdapterInfo::new(shared.private_caps.device_type(), wgt::Backend::Metal)
-            },
-            features,
-            capabilities,
-            adapter: Adapter::new(Arc::new(shared)),
-        }
+        autoreleasepool(|_| {
+            let name = device.name().to_string();
+            let capabilities_query = CapabilitiesQuery::new(&device);
+            let shared = AdapterShared::new(device, &capabilities_query);
+            let features = capabilities_query.features();
+            let capabilities = capabilities_query.capabilities();
+            crate::ExposedAdapter {
+                info: wgt::AdapterInfo {
+                    name,
+                    // These are hardcoded based on typical values for Metal devices
+                    //
+                    // See <https://github.com/gpuweb/gpuweb/blob/main/proposals/subgroups.md#adapter-info>
+                    // for more information.
+                    subgroup_min_size: 4,
+                    subgroup_max_size: 64,
+                    transient_saves_memory: shared.private_caps.supports_memoryless_storage,
+                    ..wgt::AdapterInfo::new(shared.private_caps.device_type(), wgt::Backend::Metal)
+                },
+                features,
+                capabilities,
+                adapter: Adapter::new(Arc::new(shared)),
+            }
+        })
     }
 }
 
@@ -459,7 +461,7 @@ impl Queue {
     ) -> Self {
         Self {
             shared: Arc::new(QueueShared {
-                raw,
+                raw: ManuallyDrop::new(raw),
                 command_buffer_created_not_submitted: atomic::AtomicUsize::new(0),
             }),
             timestamp_period,
@@ -469,7 +471,7 @@ impl Queue {
 
 #[derive(Debug)]
 pub struct QueueShared {
-    raw: Retained<ProtocolObject<dyn MTLCommandQueue>>,
+    raw: ManuallyDrop<Retained<ProtocolObject<dyn MTLCommandQueue>>>,
     // Tracks command buffers created via `CommandEncoder::begin_encoding` that
     // have not yet been submitted or discarded. Used to proactively fail
     // before hitting Metal's `maxCommandBufferCount`.
@@ -478,6 +480,14 @@ pub struct QueueShared {
     // to create command buffers for internal purposes. In those cases we always
     // commit the buffer immediately, so we don't adjust the counter for them.)
     command_buffer_created_not_submitted: atomic::AtomicUsize,
+}
+
+impl Drop for QueueShared {
+    fn drop(&mut self) {
+        autoreleasepool(|_| unsafe {
+            ManuallyDrop::drop(&mut self.raw);
+        });
+    }
 }
 
 pub struct Device {
