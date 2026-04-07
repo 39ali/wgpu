@@ -216,6 +216,8 @@ bitflags::bitflags! {
         const MEMORY_DECORATION_COHERENT = 1 << 41;
         /// Support for the `@volatile` memory decoration on storage buffers.
         const MEMORY_DECORATION_VOLATILE = 1 << 42;
+        /// Support for debugPrintf.
+        const DEBUG_PRINTF = 1 << 43;
     }
 }
 
@@ -248,6 +250,7 @@ impl Capabilities {
             | Self::TEXTURE_AND_SAMPLER_BINDING_ARRAY_NON_UNIFORM_INDEXING => {
                 Some(Ext::WgpuBindingArray)
             }
+            Self::DEBUG_PRINTF => Some(Ext::WgpuDebugPrintf),
             _ => None,
         }
     }

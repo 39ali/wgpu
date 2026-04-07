@@ -1,14 +1,17 @@
+use block2::StackBlock;
 use objc2::runtime::{AnyObject, ProtocolObject, Sel};
 use objc2::{available, sel};
-use objc2_foundation::{NSOperatingSystemVersion, NSProcessInfo};
+use objc2_foundation::{NSOperatingSystemVersion, NSProcessInfo, NSString};
 use objc2_metal::{
-    MTLArgumentBuffersTier, MTLCounterSamplingPoint, MTLDevice, MTLFeatureSet, MTLGPUFamily,
-    MTLIndirectAccelerationStructureInstanceDescriptor, MTLLanguageVersion, MTLPixelFormat,
+    MTLArgumentBuffersTier, MTLCommandQueueDescriptor, MTLCounterSamplingPoint, MTLDevice,
+    MTLFeatureSet, MTLGPUFamily, MTLIndirectAccelerationStructureInstanceDescriptor,
+    MTLLanguageVersion, MTLLogLevel, MTLLogState, MTLLogStateDescriptor, MTLPixelFormat,
     MTLReadWriteTextureTier,
 };
 use wgt::{AstcBlock, AstcChannel};
 
 use alloc::{string::ToString as _, sync::Arc, vec::Vec};
+use core::ptr::NonNull;
 use core::sync::atomic;
 
 use crate::metal::QueueShared;
@@ -79,11 +82,54 @@ impl crate::Adapter for super::Adapter {
         limits: &wgt::Limits,
         _memory_hints: &wgt::MemoryHints,
     ) -> Result<crate::OpenDevice<super::Api>, crate::DeviceError> {
-        let queue = self
-            .shared
-            .device
-            .newCommandQueueWithMaxCommandBufferCount(MAX_COMMAND_BUFFERS)
-            .unwrap();
+        let device = &self.shared.device;
+
+        let cq_desc = MTLCommandQueueDescriptor::new();
+        unsafe {
+            cq_desc.setMaxCommandBufferCount(MAX_COMMAND_BUFFERS);
+        }
+
+        let use_debug_printf = features.contains(wgt::Features::DEBUG_PRINTF)
+            && self.shared.private_caps.supports_debug_printf;
+        self.shared.use_debug_printf.replace(use_debug_printf);
+
+        if use_debug_printf {
+            let log_desc = MTLLogStateDescriptor::new();
+            log_desc.setLevel(MTLLogLevel::Debug);
+
+            if let Ok(log_state) = device.newLogStateWithDescriptor_error(&log_desc) {
+                cq_desc.setLogState(Some(&log_state));
+
+                let handler = StackBlock::new(
+                    |subsystem: *mut NSString,
+                     category: *mut NSString,
+                     _level: MTLLogLevel,
+                     message: NonNull<NSString>| {
+                        unsafe {
+                            let msg = message.as_ref().to_string();
+
+                            let cat = if !category.is_null() {
+                                (*category).to_string()
+                            } else {
+                                "null".to_string()
+                            };
+
+                            let sub = if !subsystem.is_null() {
+                                (*subsystem).to_string()
+                            } else {
+                                "null".to_string()
+                            };
+
+                            println!("[{sub}::{cat}] {msg}");
+                        }
+                    },
+                );
+
+                unsafe { log_state.addLogHandler(&handler) };
+            }
+        }
+
+        let queue = device.newCommandQueueWithDescriptor(&cq_desc).unwrap();
 
         // Acquiring the meaning of timestamp ticks is hard with Metal!
         // The only thing there is a method correlating cpu & gpu timestamps (`device.sample_timestamps`).
@@ -1134,6 +1180,7 @@ impl super::CapabilitiesQuery {
                 tvos = 16.0,
                 visionos = 1.0
             ),
+            supports_debug_printf: msl_version >= MTLLanguageVersion::Version3_2,
         }
     }
 
@@ -1270,6 +1317,7 @@ impl super::CapabilitiesQuery {
         features.set(F::EXPERIMENTAL_RAY_QUERY, self.supports_raytracing);
 
         features.set(F::MULTISAMPLE_ARRAY, self.supports_multisample_array);
+        features.set(F::DEBUG_PRINTF, self.supports_debug_printf);
 
         features
     }
@@ -1468,6 +1516,7 @@ impl super::CapabilitiesQuery {
             timestamp_query_support: self.timestamp_query_support,
             supports_memoryless_storage: self.supports_memoryless_storage,
             mesh_shaders: self.mesh_shaders,
+            supports_debug_printf: self.supports_debug_printf,
         }
     }
 
