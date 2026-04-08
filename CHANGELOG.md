@@ -63,6 +63,7 @@ Bottom level categories:
 #### Vulkan
 
 - Add support for RawWindowHandle::Drm on unix. By @rectalogic in [#9182](https://github.com/gfx-rs/wgpu/pull/9182).
+- Fixed alignment and MatrixStride for mat2x2 in SPIR-V uniform blocks. By @39ali [#9369](https://github.com/gfx-rs/wgpu/pull/9369).
 
 ### Changes
 
