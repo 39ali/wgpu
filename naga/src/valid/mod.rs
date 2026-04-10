@@ -216,7 +216,7 @@ bitflags::bitflags! {
         const MEMORY_DECORATION_COHERENT = 1 << 41;
         /// Support for the `@volatile` memory decoration on storage buffers.
         const MEMORY_DECORATION_VOLATILE = 1 << 42;
-        /// Support for debugPrintf.
+        /// Support for `debugPrintf`.
         const DEBUG_PRINTF = 1 << 43;
     }
 }
