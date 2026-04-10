@@ -243,7 +243,7 @@ pub enum ImplementedEnableExtension {
     WgpuPerVertex,
     /// Enables the `wgpu_binding_array` extension, native only.
     WgpuBindingArray,
-    /// Enables the `wgpu_debug_printf` extension, allows using debugPrintf.
+    /// Enables the `wgpu_debug_printf` extension, allows using `debugPrintf`.
     WgpuDebugPrintf,
 }
 
