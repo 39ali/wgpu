@@ -1823,6 +1823,7 @@ bitflags_array! {
         ///
         /// Supported platforms:
         /// - Metal (3.2+)
+        /// - Vulkan (1.1+)
         ///
         /// This is a native only feature.
         #[name("wgpu-debug-printf")]
