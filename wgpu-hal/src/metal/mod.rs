@@ -28,7 +28,11 @@ mod library_from_metallib;
 mod surface;
 mod time;
 
-use alloc::{string::ToString as _, sync::Arc, vec::Vec};
+use alloc::{
+    string::{String, ToString as _},
+    sync::Arc,
+    vec::Vec,
+};
 use core::{fmt, iter, ops, ptr::NonNull, sync::atomic};
 
 use bitflags::bitflags;
@@ -318,6 +322,7 @@ struct CapabilitiesQuery {
     supports_memoryless_storage: bool,
     supports_raytracing: bool,
     shader_per_vertex: bool,
+    supports_multisample_array: bool,
 }
 
 #[derive(Debug)]
@@ -609,6 +614,16 @@ impl crate::Queue for Queue {
     unsafe fn get_timestamp_period(&self) -> f32 {
         self.timestamp_period
     }
+
+    unsafe fn wait_for_idle(&self) -> Result<(), crate::DeviceError> {
+        autoreleasepool(|_| {
+            let command_buffer = self.shared.raw.commandBuffer().unwrap();
+            command_buffer.setLabel(Some(ns_string!("(wgpu internal) wait_for_idle")));
+            command_buffer.commit();
+            command_buffer.waitUntilCompleted();
+        });
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
@@ -863,7 +878,7 @@ pub enum ShaderModuleSource {
 #[derive(Debug)]
 pub struct PassthroughShader {
     pub library: Retained<ProtocolObject<dyn MTLLibrary>>,
-    pub num_workgroups: (u32, u32, u32),
+    pub num_workgroups: HashMap<String, (u32, u32, u32)>,
 }
 
 unsafe impl Send for PassthroughShader {}

@@ -340,21 +340,24 @@ impl super::Device {
                     immutable_buffer_mask,
                 })
             }
-            ShaderModuleSource::Passthrough(ref shader) => Ok(CompiledShader {
-                library: shader.library.clone(),
-                function: shader
-                    .library
-                    .newFunctionWithName(&NSString::from_str(stage.entry_point))
-                    .ok_or(crate::PipelineError::EntryPoint(naga_stage))?,
-                wg_size: MTLSize {
-                    width: shader.num_workgroups.0 as usize,
-                    height: shader.num_workgroups.1 as usize,
-                    depth: shader.num_workgroups.2 as usize,
-                },
-                wg_memory_sizes: vec![],
-                sized_bindings: vec![],
-                immutable_buffer_mask: 0,
-            }),
+            ShaderModuleSource::Passthrough(ref shader) => {
+                let size = shader.num_workgroups[stage.entry_point];
+                Ok(CompiledShader {
+                    library: shader.library.clone(),
+                    function: shader
+                        .library
+                        .newFunctionWithName(&NSString::from_str(stage.entry_point))
+                        .ok_or(crate::PipelineError::EntryPoint(naga_stage))?,
+                    wg_size: MTLSize {
+                        width: size.0 as usize,
+                        height: size.1 as usize,
+                        depth: size.2 as usize,
+                    },
+                    wg_memory_sizes: vec![],
+                    sized_bindings: vec![],
+                    immutable_buffer_mask: 0,
+                })
+            }
         }
     }
 
@@ -490,7 +493,15 @@ impl crate::Device for super::Device {
                 wgt::TextureDimension::D2 => {
                     if desc.sample_count > 1 {
                         unsafe { descriptor.setSampleCount(desc.sample_count as usize) };
-                        MTLTextureType::Type2DMultisample
+
+                        if desc.size.depth_or_array_layers > 1 {
+                            unsafe {
+                                descriptor.setArrayLength(desc.size.depth_or_array_layers as usize)
+                            };
+                            MTLTextureType::Type2DMultisampleArray
+                        } else {
+                            MTLTextureType::Type2DMultisample
+                        }
                     } else if desc.size.depth_or_array_layers > 1 {
                         unsafe {
                             descriptor.setArrayLength(desc.size.depth_or_array_layers as usize)
@@ -557,7 +568,9 @@ impl crate::Device for super::Device {
         texture: &super::Texture,
         desc: &crate::TextureViewDescriptor,
     ) -> DeviceResult<super::TextureView> {
-        let raw_type = if texture.raw_type == MTLTextureType::Type2DMultisample {
+        let raw_type = if texture.raw_type == MTLTextureType::Type2DMultisample
+            || texture.raw_type == MTLTextureType::Type2DMultisampleArray
+        {
             texture.raw_type
         } else {
             conv::map_texture_view_dimension(desc.dimension)
@@ -1285,6 +1298,9 @@ impl crate::Device for super::Device {
                     let mut vertex_buffer_mappings =
                         Vec::<naga::back::msl::VertexBufferMapping>::new();
                     for (i, vbl) in vertex_buffers.iter().enumerate() {
+                        let Some(vbl) = vbl else {
+                            continue;
+                        };
                         let mut attributes = Vec::<naga::back::msl::AttributeMapping>::new();
                         for attribute in vbl.attributes.iter() {
                             attributes.push(naga::back::msl::AttributeMapping {
@@ -1359,6 +1375,10 @@ impl crate::Device for super::Device {
                     if !vertex_buffers.is_empty() {
                         let vertex_descriptor = MTLVertexDescriptor::new();
                         for (i, vb) in vertex_buffers.iter().enumerate() {
+                            let Some(vb) = vb else {
+                                continue;
+                            };
+
                             let buffer_index = VERTEX_BUFFER_SLOT_START as usize + i;
                             let buffer_desc = unsafe {
                                 vertex_descriptor
@@ -1673,6 +1693,7 @@ impl crate::Device for super::Device {
 
             let module = desc.stage.module;
             let cs = if let ShaderModuleSource::Passthrough(passthrough_desc) = &module.source {
+                let size = passthrough_desc.num_workgroups[desc.stage.entry_point];
                 CompiledShader {
                     library: passthrough_desc.library.clone(),
                     function: passthrough_desc
@@ -1680,9 +1701,9 @@ impl crate::Device for super::Device {
                         .newFunctionWithName(&NSString::from_str(desc.stage.entry_point))
                         .ok_or(crate::PipelineError::EntryPoint(naga::ShaderStage::Compute))?,
                     wg_size: MTLSize {
-                        width: passthrough_desc.num_workgroups.0 as usize,
-                        height: passthrough_desc.num_workgroups.1 as usize,
-                        depth: passthrough_desc.num_workgroups.2 as usize,
+                        width: size.0 as usize,
+                        height: size.1 as usize,
+                        depth: size.2 as usize,
                     },
                     wg_memory_sizes: vec![],
                     sized_bindings: vec![],

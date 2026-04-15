@@ -14,6 +14,10 @@ const GL_UNMASKED_VENDOR_WEBGL: u32 = 0x9245;
 const GL_UNMASKED_RENDERER_WEBGL: u32 = 0x9246;
 
 impl super::Adapter {
+    pub fn get_glsl_version(&self) -> naga::back::glsl::Version {
+        self.shared.shading_language_version
+    }
+
     /// Note that this function is intentionally lenient in regards to parsing,
     /// and will try to recover at least the first two version numbers without
     /// resulting in an `Err`.
@@ -445,7 +449,8 @@ impl super::Adapter {
             | wgt::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
             | wgt::Features::CLEAR_TEXTURE
             | wgt::Features::IMMEDIATES
-            | wgt::Features::DEPTH32FLOAT_STENCIL8;
+            | wgt::Features::DEPTH32FLOAT_STENCIL8
+            | wgt::Features::PASSTHROUGH_SHADERS;
         features.set(
             wgt::Features::ADDRESS_MODE_CLAMP_TO_BORDER | wgt::Features::ADDRESS_MODE_CLAMP_TO_ZERO,
             extensions.contains("GL_EXT_texture_border_clamp")
@@ -709,8 +714,10 @@ impl super::Adapter {
             max_texture_array_layers: unsafe {
                 gl.get_parameter_i32(glow::MAX_ARRAY_TEXTURE_LAYERS)
             } as u32,
-            max_bind_groups: crate::MAX_BIND_GROUPS as u32,
-            // No real limit.
+            max_bind_groups: u32::MAX,
+            // No limit.
+            max_bind_groups_plus_vertex_buffers: u32::MAX,
+            // No limit.
             max_bindings_per_bind_group: u32::MAX,
             max_dynamic_uniform_buffers_per_pipeline_layout: max_uniform_buffers_per_shader_stage,
             max_dynamic_storage_buffers_per_pipeline_layout: max_storage_buffers_per_shader_stage,

@@ -1860,24 +1860,16 @@ impl crate::Device for super::Device {
                 raw_name,
                 runtime_checks: desc.runtime_checks,
             }),
-            crate::ShaderInput::Dxil {
-                shader,
-                num_workgroups,
-            } => Ok(super::ShaderModule {
+            crate::ShaderInput::Dxil { shader } => Ok(super::ShaderModule {
                 source: super::ShaderModuleSource::DxilPassthrough(super::DxilPassthroughShader {
                     shader: shader.to_vec(),
-                    num_workgroups,
                 }),
                 raw_name,
                 runtime_checks: desc.runtime_checks,
             }),
-            crate::ShaderInput::Hlsl {
-                shader,
-                num_workgroups,
-            } => Ok(super::ShaderModule {
+            crate::ShaderInput::Hlsl { shader } => Ok(super::ShaderModule {
                 source: super::ShaderModuleSource::HlslPassthrough(super::HlslPassthroughShader {
                     shader: shader.to_owned(),
-                    num_workgroups,
                 }),
                 raw_name,
                 runtime_checks: desc.runtime_checks,
@@ -2064,6 +2056,9 @@ impl crate::Device for super::Device {
 
                 for (i, (stride, vbuf)) in vertex_strides.iter_mut().zip(vertex_buffers).enumerate()
                 {
+                    let Some(vbuf) = vbuf else {
+                        continue;
+                    };
                     *stride = Some(vbuf.array_stride as u32);
                     let (slot_class, step_rate) = match vbuf.step_mode {
                         wgt::VertexStepMode::Vertex => {

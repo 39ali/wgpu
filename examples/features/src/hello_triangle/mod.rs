@@ -231,7 +231,18 @@ impl ApplicationHandler<TriangleAction> for App {
                         }
                         return;
                     }
-                    CurrentSurfaceTexture::Suboptimal(_) | CurrentSurfaceTexture::Outdated => {
+                    CurrentSurfaceTexture::Suboptimal(texture) => {
+                        drop(texture);
+
+                        wgpu_state
+                            .surface
+                            .configure(&wgpu_state.device, &wgpu_state.config);
+                        if let Some(window) = &self.window {
+                            window.request_redraw();
+                        }
+                        return;
+                    }
+                    CurrentSurfaceTexture::Outdated => {
                         wgpu_state
                             .surface
                             .configure(&wgpu_state.device, &wgpu_state.config);
@@ -289,7 +300,7 @@ impl ApplicationHandler<TriangleAction> for App {
                 if let Some(window) = &self.window {
                     window.pre_present_notify();
                 }
-                frame.present();
+                wgpu_state.queue.present(frame);
             }
             WindowEvent::Occluded(is_occluded) => {
                 if !is_occluded {

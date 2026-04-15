@@ -1021,6 +1021,16 @@ impl PhysicalDeviceFeatures {
             caps.supports_extension(khr::external_memory_win32::NAME),
         );
         features.set(
+            F::VULKAN_EXTERNAL_MEMORY_FD,
+            caps.supports_extension(khr::external_memory_fd::NAME),
+        );
+        features.set(
+            F::VULKAN_EXTERNAL_MEMORY_DMA_BUF,
+            caps.supports_extension(khr::external_memory_fd::NAME)
+                && caps.supports_extension(ext::external_memory_dma_buf::NAME)
+                && caps.supports_extension(ext::image_drm_format_modifier::NAME),
+        );
+        features.set(
             F::EXPERIMENTAL_MESH_SHADER,
             caps.supports_extension(ext::mesh_shader::NAME),
         );
@@ -1291,6 +1301,11 @@ impl PhysicalDeviceProperties {
             extensions.push(ext::external_memory_dma_buf::NAME);
         }
 
+        // Optional `VK_EXT_image_drm_format_modifier`
+        if self.supports_extension(ext::image_drm_format_modifier::NAME) {
+            extensions.push(ext::image_drm_format_modifier::NAME);
+        }
+
         // Optional `VK_EXT_memory_budget`
         if self.supports_extension(ext::memory_budget::NAME) {
             extensions.push(ext::memory_budget::NAME);
@@ -1478,13 +1493,20 @@ impl PhysicalDeviceProperties {
             .max_color_attachments
             .min(limits.max_fragment_output_attachments);
 
-        let ignore_max_fragment_combined_output_resources = [
+        let ignore_max_fragment_combined_output_resources_by_device = [
             crate::auxil::db::intel::VENDOR,
             crate::auxil::db::nvidia::VENDOR,
             crate::auxil::db::amd::VENDOR,
             crate::auxil::db::imgtec::VENDOR,
         ]
         .contains(&self.properties.vendor_id);
+        let ignore_max_fragment_combined_output_resources_by_driver = self
+            .driver
+            .map(|driver| [vk::DriverId::MESA_AGXV].contains(&driver.driver_id))
+            .unwrap_or_default();
+        let ignore_max_fragment_combined_output_resources =
+            ignore_max_fragment_combined_output_resources_by_device
+                || ignore_max_fragment_combined_output_resources_by_driver;
 
         if !ignore_max_fragment_combined_output_resources {
             crate::auxil::cap_limits_to_be_under_the_sum_limit(
@@ -1612,6 +1634,8 @@ impl PhysicalDeviceProperties {
             max_texture_dimension_3d: limits.max_image_dimension3_d,
             max_texture_array_layers: limits.max_image_array_layers,
             max_bind_groups: limits.max_bound_descriptor_sets,
+            // No limit.
+            max_bind_groups_plus_vertex_buffers: u32::MAX,
             max_bindings_per_bind_group,
             max_dynamic_uniform_buffers_per_pipeline_layout: limits
                 .max_descriptor_set_uniform_buffers_dynamic,
@@ -2500,6 +2524,14 @@ impl super::Adapter {
         } else {
             None
         };
+        let external_memory_fd_fn = if enabled_extensions.contains(&khr::external_memory_fd::NAME) {
+            Some(khr::external_memory_fd::Device::new(
+                &self.instance.raw,
+                &raw_device,
+            ))
+        } else {
+            None
+        };
 
         let naga_options = {
             use naga::back::spv;
@@ -2743,6 +2775,7 @@ impl super::Adapter {
                 timeline_semaphore: timeline_semaphore_fn,
                 ray_tracing: ray_tracing_fns,
                 mesh_shading: mesh_shading_fns,
+                external_memory_fd: external_memory_fd_fn,
             },
             pipeline_cache_validation_key,
             vendor_id: self.phd_capabilities.properties.vendor_id,

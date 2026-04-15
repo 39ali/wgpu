@@ -88,7 +88,7 @@ mod types;
 mod view;
 
 use alloc::{borrow::ToOwned as _, string::String, sync::Arc, vec::Vec};
-use core::{ffi, fmt, mem, ops::Deref};
+use core::{ffi, fmt, mem, ops::Deref, sync::atomic::AtomicU64};
 
 use arrayvec::ArrayVec;
 use hashbrown::HashMap;
@@ -788,6 +788,9 @@ unsafe impl Sync for Device {}
 pub struct Queue {
     raw: Direct3D12::ID3D12CommandQueue,
     temp_lists: Mutex<Vec<Option<Direct3D12::ID3D12CommandList>>>,
+    idle_fence: Direct3D12::ID3D12Fence,
+    idle_event: Event,
+    idle_fence_value: AtomicU64,
 }
 
 impl Queue {
@@ -955,6 +958,12 @@ pub struct Buffer {
     // as the allocation size varies for assorted reasons.
     size: wgt::BufferAddress,
     allocation: suballocation::Allocation,
+}
+
+impl Buffer {
+    pub unsafe fn raw_resource(&self) -> &Direct3D12::ID3D12Resource {
+        &self.resource
+    }
 }
 
 unsafe impl Send for Buffer {}
@@ -1654,17 +1663,31 @@ impl crate::Queue for Queue {
         let frequency = unsafe { self.raw.GetTimestampFrequency() }.expect("GetTimestampFrequency");
         (1_000_000_000.0 / frequency as f64) as f32
     }
+
+    unsafe fn wait_for_idle(&self) -> Result<(), crate::DeviceError> {
+        let value = self
+            .idle_fence_value
+            .fetch_add(1, core::sync::atomic::Ordering::Relaxed)
+            + 1;
+        unsafe { self.raw.Signal(&self.idle_fence, value) }
+            .into_device_result("Signal idle fence")?;
+        unsafe {
+            self.idle_fence
+                .SetEventOnCompletion(value, self.idle_event.0)
+        }
+        .into_device_result("SetEventOnCompletion")?;
+        unsafe { Threading::WaitForSingleObject(self.idle_event.0, Threading::INFINITE) };
+        Ok(())
+    }
 }
 #[derive(Debug)]
 pub struct DxilPassthroughShader {
     pub shader: Vec<u8>,
-    pub num_workgroups: (u32, u32, u32),
 }
 
 #[derive(Debug)]
 pub struct HlslPassthroughShader {
     pub shader: String,
-    pub num_workgroups: (u32, u32, u32),
 }
 
 #[derive(Debug)]
