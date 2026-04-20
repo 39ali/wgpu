@@ -8208,8 +8208,8 @@ mod workgroup_mem_init {
         }
 
         fn root_is_workgroup_pointer(&self, module: &crate::Module) -> bool {
-            if let Some(Access::GlobalVariable(handle)) = self.stack.first().as_deref() {
-                let var = &module.global_variables[*handle];
+            if let Some(&Access::GlobalVariable(handle)) = self.stack.first() {
+                let var = &module.global_variables[handle];
                 return var.space == crate::AddressSpace::WorkGroup;
             }
             false
