@@ -3153,17 +3153,6 @@ impl<W: Write> Writer<W> {
                 let var = &context.module.global_variables[handle];
                 var.space == crate::AddressSpace::WorkGroup
             }
-            crate::Expression::FunctionArgument(index) => {
-                let arg = &context.function.arguments[index as usize];
-                let type_inner = &context.module.types[arg.ty].inner;
-                matches!(
-                    type_inner,
-                    crate::TypeInner::Pointer {
-                        space: crate::AddressSpace::WorkGroup,
-                        ..
-                    }
-                )
-            }
             _ => false,
         }
     }
@@ -8105,28 +8094,9 @@ mod workgroup_mem_init {
             match *self {
                 Access::GlobalVariable(handle) => {
                     let var = &module.global_variables[handle];
-                    // workgroup variables are passed as pointers to the kernel
                     var.space == crate::AddressSpace::WorkGroup
-                        || matches!(module.types[var.ty].inner, crate::TypeInner::Pointer { .. })
                 }
-                Access::StructMember(struct_handle, member_index) => {
-                    // check if the member's type is a pointer
-                    if let crate::TypeInner::Struct { ref members, .. } =
-                        module.types[struct_handle].inner
-                    {
-                        if let Some(member) = members.get(member_index as usize) {
-                            matches!(
-                                module.types[member.ty].inner,
-                                crate::TypeInner::Pointer { .. }
-                            )
-                        } else {
-                            false
-                        }
-                    } else {
-                        false
-                    }
-                }
-                Access::Array(_) => false,
+                Access::StructMember(..) | Access::Array(_) => false,
             }
         }
 
