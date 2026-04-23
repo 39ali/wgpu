@@ -10,7 +10,6 @@ use objc2_metal::{
 use wgt::{AstcBlock, AstcChannel};
 
 use alloc::{string::ToString as _, sync::Arc, vec::Vec};
-use core::mem::ManuallyDrop;
 use core::sync::atomic;
 
 use crate::metal::QueueShared;
@@ -123,7 +122,7 @@ impl crate::Adapter for super::Adapter {
                 },
                 queue: super::Queue {
                     shared: Arc::new(QueueShared {
-                        raw: ManuallyDrop::new(queue),
+                        raw: queue,
                         command_buffer_created_not_submitted: atomic::AtomicUsize::new(0),
                     }),
                     timestamp_period,

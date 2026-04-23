@@ -461,7 +461,7 @@ impl Queue {
     ) -> Self {
         Self {
             shared: Arc::new(QueueShared {
-                raw: ManuallyDrop::new(raw),
+                raw,
                 command_buffer_created_not_submitted: atomic::AtomicUsize::new(0),
             }),
             timestamp_period,
@@ -471,7 +471,7 @@ impl Queue {
 
 #[derive(Debug)]
 pub struct QueueShared {
-    raw: ManuallyDrop<Retained<ProtocolObject<dyn MTLCommandQueue>>>,
+    raw: Retained<ProtocolObject<dyn MTLCommandQueue>>,
     // Tracks command buffers created via `CommandEncoder::begin_encoding` that
     // have not yet been submitted or discarded. Used to proactively fail
     // before hitting Metal's `maxCommandBufferCount`.
@@ -480,14 +480,6 @@ pub struct QueueShared {
     // to create command buffers for internal purposes. In those cases we always
     // commit the buffer immediately, so we don't adjust the counter for them.)
     command_buffer_created_not_submitted: atomic::AtomicUsize,
-}
-
-impl Drop for QueueShared {
-    fn drop(&mut self) {
-        autoreleasepool(|_| unsafe {
-            ManuallyDrop::drop(&mut self.raw);
-        });
-    }
 }
 
 pub struct Device {
