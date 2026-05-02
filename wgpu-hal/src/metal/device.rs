@@ -1,7 +1,8 @@
 use alloc::{borrow::ToOwned as _, sync::Arc, vec::Vec};
-use core::{ptr::NonNull, sync::atomic};
+use core::ptr::NonNull;
 
 use bytemuck::TransparentWrapper;
+use parking_lot::{Condvar, Mutex};
 use objc2::{
     available,
     rc::{autoreleasepool, Retained},
@@ -10,7 +11,7 @@ use objc2::{
 use objc2_foundation::{ns_string, NSError, NSRange, NSString, NSUInteger};
 use objc2_metal::{
     MTLAccelerationStructure, MTLAccelerationStructureInstanceOptions, MTLBuffer,
-    MTLCaptureManager, MTLCaptureScope, MTLCommandBuffer, MTLCommandBufferStatus,
+    MTLCaptureManager, MTLCaptureScope,
     MTLCompileOptions, MTLComputePipelineDescriptor, MTLComputePipelineState,
     MTLCounterSampleBufferDescriptor, MTLCounterSet, MTLDepthClipMode, MTLDepthStencilDescriptor,
     MTLDevice, MTLFunction, MTLIndirectAccelerationStructureInstanceDescriptor, MTLLanguageVersion,
@@ -1884,7 +1885,7 @@ impl crate::Device for super::Device {
             None
         };
         Ok(super::Fence {
-            completed_value: Arc::new(atomic::AtomicU64::new(0)),
+            sync: Arc::new((Mutex::new(0), Condvar::new())),
             pending_command_buffers: Vec::new(),
             shared_event,
         })
@@ -1895,13 +1896,7 @@ impl crate::Device for super::Device {
     }
 
     unsafe fn get_fence_value(&self, fence: &super::Fence) -> DeviceResult<crate::FenceValue> {
-        let mut max_value = fence.completed_value.load(atomic::Ordering::Acquire);
-        for &(value, ref cmd_buf) in fence.pending_command_buffers.iter() {
-            if cmd_buf.status() == MTLCommandBufferStatus::Completed {
-                max_value = value;
-            }
-        }
-        Ok(max_value)
+        Ok(fence.get_latest())
     }
     unsafe fn wait(
         &self,
@@ -1909,7 +1904,10 @@ impl crate::Device for super::Device {
         wait_value: crate::FenceValue,
         timeout: Option<core::time::Duration>,
     ) -> DeviceResult<bool> {
-        if wait_value <= fence.completed_value.load(atomic::Ordering::Acquire) {
+        let (ref mutex, ref condvar) = *fence.sync;
+        let mut lock = mutex.lock();
+
+        if wait_value <= *lock {
             return Ok(true);
         }
 
@@ -1922,22 +1920,17 @@ impl crate::Device for super::Device {
             return Err(crate::DeviceError::Lost);
         }
 
-        let (ref mutex, ref condvar) = *self.shared.queue_sync;
-        let mut lock = mutex.lock();
-
         if let Some(deadline) =
             timeout.and_then(|timeout| std::time::Instant::now().checked_add(timeout))
         {
-            while fence.completed_value.load(atomic::Ordering::Acquire) < wait_value {
+            while *lock < wait_value {
                 let result = condvar.wait_until(&mut lock, deadline);
                 if result.timed_out() {
-                    // check again and return false if we timed out and the value still isn't met
-                    return Ok(fence.completed_value.load(atomic::Ordering::Acquire) >= wait_value);
+                    return Ok(*lock >= wait_value);
                 }
             }
         } else {
-            // wait indefinitely until the condition is met
-            while fence.completed_value.load(atomic::Ordering::Acquire) < wait_value {
+            while *lock < wait_value {
                 condvar.wait(&mut lock);
             }
         }

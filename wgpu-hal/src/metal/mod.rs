@@ -390,7 +390,6 @@ struct AdapterShared {
     private_texture_format_caps: PrivateTextureFormatCapabilities,
     settings: Settings,
     presentation_timer: time::PresentationTimer,
-    queue_sync: Arc<(Mutex<()>, Condvar)>,
 }
 
 unsafe impl Send for AdapterShared {}
@@ -413,7 +412,6 @@ impl AdapterShared {
             device,
             settings: Settings::default(),
             presentation_timer: time::PresentationTimer::new(),
-            queue_sync: Arc::new((Mutex::new(()), Condvar::new())),
         }
     }
 
@@ -465,7 +463,6 @@ impl Queue {
             shared: Arc::new(QueueShared {
                 raw,
                 command_buffer_created_not_submitted: atomic::AtomicUsize::new(0),
-                sync: Arc::new((Mutex::new(()), Condvar::new())),
             }),
             timestamp_period,
         }
@@ -483,7 +480,6 @@ pub struct QueueShared {
     // to create command buffers for internal purposes. In those cases we always
     // commit the buffer immediately, so we don't adjust the counter for them.)
     command_buffer_created_not_submitted: atomic::AtomicUsize,
-    sync: Arc<(Mutex<()>, Condvar)>,
 }
 
 pub struct Device {
@@ -539,12 +535,10 @@ impl crate::Queue for Queue {
     ) -> Result<(), crate::DeviceError> {
         autoreleasepool(|_| {
             let extra_command_buffer = {
-                let completed_value = Arc::clone(&signal_fence.completed_value);
-                let sync = Arc::clone(&self.shared.sync);
+                let fence_sync = Arc::clone(&signal_fence.sync);
                 let block = block2::RcBlock::new(move |_cmd_buf| {
-                    completed_value.store(signal_value, atomic::Ordering::Release);
-                    let _lock = sync.0.lock();
-                    sync.1.notify_all();
+                    *fence_sync.0.lock() = signal_value;
+                    fence_sync.1.notify_all();
                 });
 
                 let raw = match command_buffers.last() {
@@ -1027,7 +1021,7 @@ unsafe impl Sync for QuerySet {}
 
 #[derive(Debug)]
 pub struct Fence {
-    completed_value: Arc<atomic::AtomicU64>,
+    sync: Arc<(Mutex<crate::FenceValue>, Condvar)>,
     /// The pending fence values have to be ascending.
     pending_command_buffers: Vec<(
         crate::FenceValue,
@@ -1043,7 +1037,7 @@ unsafe impl Sync for Fence {}
 
 impl Fence {
     fn get_latest(&self) -> crate::FenceValue {
-        let mut max_value = self.completed_value.load(atomic::Ordering::Acquire);
+        let mut max_value = *self.sync.0.lock();
         for &(value, ref cmd_buf) in self.pending_command_buffers.iter() {
             if cmd_buf.status() == MTLCommandBufferStatus::Completed {
                 max_value = value;
